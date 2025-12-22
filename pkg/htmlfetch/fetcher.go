@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -13,7 +14,10 @@ import (
 
 // Fetcher はrod/Chromiumを使ったHTMLフェッチャー
 type Fetcher struct {
-	config fetcherConfig
+	config  fetcherConfig
+	browser *rod.Browser
+	mu      sync.Mutex
+	started bool
 }
 
 // New は新しいFetcherを作成
@@ -27,8 +31,53 @@ func New(opts ...Option) *Fetcher {
 	return &Fetcher{config: cfg}
 }
 
+// Start はブラウザを起動して維持する（高速モード）
+// Start()を呼ぶと、Fetch()はタブの作成/破棄のみ行う
+// 使用後は必ずClose()を呼ぶこと
+func (f *Fetcher) Start() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.started {
+		return nil
+	}
+
+	browser, err := f.launchBrowser()
+	if err != nil {
+		return err
+	}
+
+	f.browser = browser
+	f.started = true
+	return nil
+}
+
+// Close はブラウザを終了する
+// Start()を呼んだ場合は必ずClose()を呼ぶこと
+func (f *Fetcher) Close() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if !f.started {
+		return nil
+	}
+
+	err := f.browser.Close()
+	f.browser = nil
+	f.started = false
+	return err
+}
+
+// IsStarted はブラウザが起動中かを返す
+func (f *Fetcher) IsStarted() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.started
+}
+
 // Fetch はURLからHTMLを取得
-// 毎回ブラウザを起動→取得→終了する
+// Start()が呼ばれていない場合: 毎回ブラウザを起動→取得→終了（従来動作）
+// Start()が呼ばれている場合: タブを作成→取得→閉じる（高速モード）
 func (f *Fetcher) Fetch(ctx context.Context, url string, opts ...FetchOption) (*Result, error) {
 	startTime := time.Now()
 
@@ -39,50 +88,12 @@ func (f *Fetcher) Fetch(ctx context.Context, url string, opts ...FetchOption) (*
 	}
 	applyDefaults(cfg)
 
-	// ブラウザパスを決定
-	browserPath := f.config.browserPath
-	if browserPath == "" {
-		browserPath = detectBrowserPath()
-	}
-
-	// ブラウザを起動
-	l := launcher.New().Bin(browserPath).Headless(true).NoSandbox(true).
-		Leakless(false).
-		Set("disable-dev-shm-usage").
-		Set("disable-gpu").
-		Set("disable-software-rasterizer").
-		Set("disable-extensions").
-		Set("no-first-run").
-		Set("no-default-browser-check").
-		Set("disable-background-networking").
-		Set("disable-sync").
-		Set("disable-breakpad")
-
-	// プロキシが指定されている場合は設定
-	if f.config.proxy != "" {
-		l = l.Proxy(f.config.proxy)
-	}
-
-	launchURL, err := l.Launch()
+	// ブラウザとページを取得
+	_, page, cleanup, err := f.getBrowserAndPage()
 	if err != nil {
-		return nil, &FetchError{
-			Code:    ErrBrowserLaunchFailed,
-			Message: "ブラウザの起動に失敗しました",
-			Cause:   err,
-		}
+		return nil, err
 	}
-
-	browser := rod.New().ControlURL(launchURL).MustConnect()
-	defer browser.MustClose()
-
-	// ページを作成（stealthモードの場合はstealth経由）
-	var page *rod.Page
-	if f.config.stealth {
-		page = stealth.MustPage(browser)
-	} else {
-		page = browser.MustPage()
-	}
-	defer page.MustClose()
+	defer cleanup()
 
 	// ブロッキングセットを作成
 	blockSet := newBlockingSet(cfg.blocking)
@@ -171,14 +182,94 @@ func (f *Fetcher) Fetch(ctx context.Context, url string, opts ...FetchOption) (*
 	}, nil
 }
 
+// getBrowserAndPage はブラウザとページを取得し、クリーンアップ関数を返す
+func (f *Fetcher) getBrowserAndPage() (*rod.Browser, *rod.Page, func(), error) {
+	f.mu.Lock()
+	started := f.started
+	browser := f.browser
+	f.mu.Unlock()
+
+	if started {
+		// 高速モード: 既存ブラウザでタブを作成
+		page, err := f.createPage(browser)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		cleanup := func() {
+			page.MustClose()
+		}
+		return browser, page, cleanup, nil
+	}
+
+	// 従来モード: ブラウザを起動
+	newBrowser, err := f.launchBrowser()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	page, err := f.createPage(newBrowser)
+	if err != nil {
+		newBrowser.MustClose()
+		return nil, nil, nil, err
+	}
+
+	cleanup := func() {
+		page.MustClose()
+		newBrowser.MustClose()
+	}
+	return newBrowser, page, cleanup, nil
+}
+
+// launchBrowser はブラウザを起動
+func (f *Fetcher) launchBrowser() (*rod.Browser, error) {
+	browserPath := f.config.browserPath
+	if browserPath == "" {
+		browserPath = detectBrowserPath()
+	}
+
+	l := launcher.New().Bin(browserPath).Headless(true).NoSandbox(true).
+		Leakless(false).
+		Set("disable-dev-shm-usage").
+		Set("disable-gpu").
+		Set("disable-software-rasterizer").
+		Set("disable-extensions").
+		Set("no-first-run").
+		Set("no-default-browser-check").
+		Set("disable-background-networking").
+		Set("disable-sync").
+		Set("disable-breakpad")
+
+	if f.config.proxy != "" {
+		l = l.Proxy(f.config.proxy)
+	}
+
+	launchURL, err := l.Launch()
+	if err != nil {
+		return nil, &FetchError{
+			Code:    ErrBrowserLaunchFailed,
+			Message: "ブラウザの起動に失敗しました",
+			Cause:   err,
+		}
+	}
+
+	browser := rod.New().ControlURL(launchURL).MustConnect()
+	return browser, nil
+}
+
+// createPage はページを作成
+func (f *Fetcher) createPage(browser *rod.Browser) (*rod.Page, error) {
+	if f.config.stealth {
+		return stealth.MustPage(browser), nil
+	}
+	return browser.MustPage(), nil
+}
+
 // detectBrowserPath はブラウザのパスを自動検出
 func detectBrowserPath() string {
-	// headless-shellイメージを優先
 	headlessPath := "/headless-shell/headless-shell"
 	if _, err := os.Stat(headlessPath); err == nil {
 		return headlessPath
 	}
-	// launcherに任せる
 	path, _ := launcher.LookPath()
 	return path
 }
