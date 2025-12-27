@@ -174,12 +174,23 @@ func (f *Fetcher) Fetch(ctx context.Context, url string, opts ...FetchOption) (*
 		finalURL = info.URL
 	}
 
-	return &Result{
+	result := &Result{
 		HTML:     html,
 		FinalURL: finalURL,
 		Stats:    collector.getStats(),
 		Duration: time.Since(startTime),
-	}, nil
+	}
+
+	// Markdown変換（オプション）
+	if cfg.markdown {
+		markdown, err := convertToMarkdown(html, finalURL)
+		if err != nil {
+			return nil, err
+		}
+		result.Markdown = markdown
+	}
+
+	return result, nil
 }
 
 // getBrowserAndPage はブラウザとページを取得し、クリーンアップ関数を返す
