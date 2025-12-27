@@ -43,6 +43,7 @@ type fetchConfig struct {
 	blocking        BlockingOptions
 	embedCSS        bool
 	stripScripts    bool
+	markdown        bool
 }
 
 // FetchOption はFetch実行時のオプション
@@ -89,6 +90,13 @@ func WithEmbedCSS() FetchOption {
 func WithStripScripts() FetchOption {
 	return func(c *fetchConfig) {
 		c.stripScripts = true
+	}
+}
+
+// WithMarkdown はマークダウン変換を有効化
+func WithMarkdown() FetchOption {
+	return func(c *fetchConfig) {
+		c.markdown = true
 	}
 }
 

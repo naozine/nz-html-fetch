@@ -27,7 +27,8 @@ func main() {
 	blockFonts := flag.Bool("block-fonts", false, "フォントブロック")
 	embedCSS := flag.Bool("embed-css", false, "外部CSSを埋め込み")
 	stripScripts := flag.Bool("strip-scripts", false, "スクリプト除去")
-	output := flag.String("output", "html", "出力形式 (html/json/stats)")
+	markdown := flag.Bool("markdown", false, "マークダウン変換を有効化")
+	output := flag.String("output", "html", "出力形式 (html/json/stats/markdown)")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "使用法: %s [オプション] URL\n\n", os.Args[0])
@@ -83,6 +84,9 @@ func main() {
 	if *stripScripts {
 		fetchOpts = append(fetchOpts, htmlfetch.WithStripScripts())
 	}
+	if *markdown || *output == "markdown" {
+		fetchOpts = append(fetchOpts, htmlfetch.WithMarkdown())
+	}
 
 	// フェッチ実行
 	fetcher := htmlfetch.New(fetcherOpts...)
@@ -96,8 +100,10 @@ func main() {
 	switch *output {
 	case "html":
 		fmt.Print(result.HTML)
+	case "markdown":
+		fmt.Print(result.Markdown)
 	case "json":
-		outputJSON(result)
+		outputJSON(result, *markdown)
 	case "stats":
 		outputStats(result)
 	default:
@@ -133,12 +139,14 @@ func parseWaitStrategy(s string) htmlfetch.WaitStrategy {
 }
 
 // outputJSON はJSON形式で出力
-func outputJSON(result *htmlfetch.Result) {
+func outputJSON(result *htmlfetch.Result, includeMarkdown bool) {
 	type jsonOutput struct {
-		FinalURL   string `json:"final_url"`
-		DurationMs int64  `json:"duration_ms"`
-		HTMLLength int    `json:"html_length"`
-		Stats      struct {
+		FinalURL       string `json:"final_url"`
+		DurationMs     int64  `json:"duration_ms"`
+		HTMLLength     int    `json:"html_length"`
+		MarkdownLength int    `json:"markdown_length,omitempty"`
+		Markdown       string `json:"markdown,omitempty"`
+		Stats          struct {
 			TotalBytesIn   int64 `json:"total_bytes_in"`
 			TotalBytesOut  int64 `json:"total_bytes_out"`
 			RequestCount   int   `json:"request_count"`
@@ -154,6 +162,10 @@ func outputJSON(result *htmlfetch.Result) {
 		FinalURL:   result.FinalURL,
 		DurationMs: result.Duration.Milliseconds(),
 		HTMLLength: len(result.HTML),
+	}
+	if includeMarkdown && result.Markdown != "" {
+		out.MarkdownLength = len(result.Markdown)
+		out.Markdown = result.Markdown
 	}
 	out.Stats.TotalBytesIn = result.Stats.TotalBytesIn
 	out.Stats.TotalBytesOut = result.Stats.TotalBytesOut

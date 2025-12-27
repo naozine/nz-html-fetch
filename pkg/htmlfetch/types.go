@@ -5,6 +5,7 @@ import "time"
 // Result はフェッチ結果
 type Result struct {
 	HTML     string
+	Markdown string // WithMarkdown() 指定時のみ値が入る
 	FinalURL string
 	Stats    NetworkStats
 	Duration time.Duration
