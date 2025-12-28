@@ -1,4 +1,4 @@
-module nz-html-fetch
+module github.com/naozine/nz-html-fetch
 
 go 1.25
 

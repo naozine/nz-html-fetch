@@ -27,7 +27,7 @@ package main
 import (
     "context"
     "fmt"
-    "nz-html-fetch/pkg/htmlfetch"
+日本語の「こめ    "github.com/naozine/nz-html-fetch/pkg/htmlfetch"
 )
 
 func main() {
@@ -189,6 +189,12 @@ Network: 554.1 KB in / 20.1 KB out (36 requests)
 - [go-rod/stealth](https://github.com/go-rod/stealth) - Bot検出回避
 - [go-shiori/go-readability](https://github.com/go-shiori/go-readability) - コンテンツ抽出
 - [JohannesKaufmann/html-to-markdown](https://github.com/JohannesKaufmann/html-to-markdown) - Markdown変換
+
+## 注意事項
+
+- 対象サイトの利用規約・robots.txtを確認し、遵守してください
+- 過度なリクエストによるサービス妨害は法律で禁止されています
+- 本ツールの使用によって生じた問題について、作者は一切の責任を負いません
 
 ## ライセンス
 

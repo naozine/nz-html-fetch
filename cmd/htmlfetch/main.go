@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"nz-html-fetch/pkg/htmlfetch"
+	"github.com/naozine/nz-html-fetch/pkg/htmlfetch"
 )
 
 func main() {
