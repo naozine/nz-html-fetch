@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
+	"github.com/go-rod/rod/lib/proto"
 	"github.com/go-rod/stealth"
 )
 
@@ -270,9 +271,18 @@ func (f *Fetcher) launchBrowser() (*rod.Browser, error) {
 // createPage はページを作成
 func (f *Fetcher) createPage(browser *rod.Browser) (*rod.Page, error) {
 	if f.config.stealth {
-		return stealth.MustPage(browser), nil
+		page, err := stealth.Page(browser)
+		if err != nil {
+			return nil, fmt.Errorf("stealth pageの作成に失敗: %w", err)
+		}
+		return page, nil
 	}
-	return browser.MustPage(), nil
+	// proto.TargetCreateTarget はChrome DevTools Protocol（CDP）の「新しいタブを作成」コマンド
+	page, err := browser.Page(proto.TargetCreateTarget{})
+	if err != nil {
+		return nil, fmt.Errorf("pageの作成に失敗: %w", err)
+	}
+	return page, nil
 }
 
 // detectBrowserPath はブラウザのパスを自動検出
