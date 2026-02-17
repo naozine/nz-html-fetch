@@ -88,7 +88,7 @@ fetcher := htmlfetch.New(
 
 // Fetch実行オプション
 result, err := fetcher.Fetch(ctx, url,
-    htmlfetch.WithWaitStrategy(htmlfetch.WaitNetworkIdle), // 待機戦略
+    htmlfetch.WithWaitStrategy(htmlfetch.WaitAuto),         // 待機戦略（動的コンテンツ向け）
     htmlfetch.WithSelector("#content", 10*time.Second),    // 要素待機
     htmlfetch.WithViewport(1920, 1080),                    // ビューポート
     htmlfetch.WithBlocking(htmlfetch.BlockingOptions{      // リソースブロック
@@ -116,7 +116,10 @@ go build -o htmlfetch ./cmd/htmlfetch
 # 広告ブロック + 統計表示
 ./htmlfetch -block-ads -output=stats https://example.com
 
-# 要素待機
+# 動的コンテンツの取得（セレクタ指定不要）
+./htmlfetch -wait=auto https://example.com
+
+# 特定要素の待機
 ./htmlfetch -wait=networkidle -selector="#content" https://example.com
 
 # JSON出力（Markdown含む）
@@ -127,7 +130,7 @@ go build -o htmlfetch ./cmd/htmlfetch
 
 | オプション | 説明 | デフォルト |
 |-----------|------|-----------|
-| `-wait` | 待機戦略 (load/networkidle/domstable) | load |
+| `-wait` | 待機戦略 (load/networkidle/domstable/auto) | load |
 | `-selector` | 待機するCSSセレクタ | - |
 | `-selector-timeout` | セレクタ待機タイムアウト（秒） | 30 |
 | `-viewport` | ビューポートサイズ (WxH) | 1920x1080 |

@@ -46,6 +46,7 @@ const (
 	WaitLoad        WaitStrategy = "load"
 	WaitNetworkIdle WaitStrategy = "networkidle"
 	WaitDOMStable   WaitStrategy = "domstable"
+	WaitAuto        WaitStrategy = "auto"
 )
 
 // FetchError は構造化エラー
