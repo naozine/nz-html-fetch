@@ -302,6 +302,14 @@ func waitForPage(page *rod.Page, strategy WaitStrategy) error {
 		return page.WaitIdle(2 * time.Second)
 	case WaitDOMStable:
 		return page.WaitStable(500 * time.Millisecond)
+	case WaitAuto:
+		if err := page.WaitLoad(); err != nil {
+			return err
+		}
+		if err := page.WaitIdle(2 * time.Second); err != nil {
+			return err
+		}
+		return page.WaitStable(500 * time.Millisecond)
 	case WaitLoad:
 		fallthrough
 	default:

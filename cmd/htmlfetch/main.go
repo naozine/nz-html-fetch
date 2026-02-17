@@ -15,7 +15,7 @@ import (
 
 func main() {
 	// フラグ定義
-	wait := flag.String("wait", "load", "待機戦略 (load/networkidle/domstable)")
+	wait := flag.String("wait", "load", "待機戦略 (load/networkidle/domstable/auto)")
 	selector := flag.String("selector", "", "待機するCSSセレクタ")
 	selectorTimeout := flag.Int("selector-timeout", 30, "セレクタ待機タイムアウト（秒）")
 	viewport := flag.String("viewport", "1920x1080", "ビューポートサイズ (WxH)")
@@ -133,6 +133,8 @@ func parseWaitStrategy(s string) htmlfetch.WaitStrategy {
 		return htmlfetch.WaitNetworkIdle
 	case "domstable":
 		return htmlfetch.WaitDOMStable
+	case "auto":
+		return htmlfetch.WaitAuto
 	default:
 		return htmlfetch.WaitLoad
 	}
