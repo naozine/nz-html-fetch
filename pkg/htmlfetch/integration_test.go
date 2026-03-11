@@ -112,6 +112,45 @@ func TestAcceptLanguage_DefaultRedirectsToJa(t *testing.T) {
 	}
 }
 
+// TestUserAgent_NoHeadlessChrome はUserAgentにHeadlessChromeが含まれないことを検証する。
+func TestUserAgent_NoHeadlessChrome(t *testing.T) {
+	if testing.Short() {
+		t.Skip("統合テストをスキップ（-short指定）")
+	}
+
+	ts := newTestServer(t)
+	defer ts.Close()
+
+	tests := []struct {
+		name    string
+		stealth bool
+	}{
+		{"Stealth", true},
+		{"NonStealth", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fetcher := New(WithStealth(tt.stealth))
+			if err := fetcher.Start(); err != nil {
+				t.Fatalf("ブラウザの起動に失敗: %v", err)
+			}
+			defer fetcher.Close()
+
+			result, err := fetcher.Fetch(context.Background(), ts.URL+"/echo-headers",
+				WithWaitStrategy(WaitLoad))
+			if err != nil {
+				t.Fatalf("Fetchに失敗: %v", err)
+			}
+
+			if strings.Contains(result.HTML, "HeadlessChrome") {
+				t.Error("UserAgentにHeadlessChromeが含まれています")
+			}
+			assertContains(t, result.HTML, "Chrome/")
+		})
+	}
+}
+
 func assertContains(t *testing.T, html, marker string) {
 	t.Helper()
 	if !strings.Contains(html, marker) {

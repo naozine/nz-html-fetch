@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -90,7 +91,7 @@ func (f *Fetcher) Fetch(ctx context.Context, url string, opts ...FetchOption) (*
 	applyDefaults(cfg)
 
 	// ブラウザとページを取得
-	_, page, cleanup, err := f.getBrowserAndPage()
+	browser, page, cleanup, err := f.getBrowserAndPage()
 	if err != nil {
 		return nil, err
 	}
@@ -116,6 +117,16 @@ func (f *Fetcher) Fetch(ctx context.Context, url string, opts ...FetchOption) (*
 	if ctx != nil {
 		page = page.Context(ctx)
 	}
+
+	// Accept-Languageを日本語優先に設定し、UserAgentからHeadlessChrome表記を除去
+	ua := ""
+	if ver, verErr := (proto.BrowserGetVersion{}).Call(browser); verErr == nil {
+		ua = strings.Replace(ver.UserAgent, "HeadlessChrome", "Chrome", 1)
+	}
+	page.SetUserAgent(&proto.NetworkSetUserAgentOverride{
+		UserAgent:      ua,
+		AcceptLanguage: "ja",
+	})
 
 	// ページに遷移
 	if err := page.Navigate(url); err != nil {

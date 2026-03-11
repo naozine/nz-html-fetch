@@ -1,6 +1,7 @@
 package htmlfetch
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -21,6 +22,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 	mux.HandleFunc("/lang-redirect", handleLangRedirect)
 	mux.HandleFunc("/lang-redirect/ja", handleLangJa)
 	mux.HandleFunc("/lang-redirect/en", handleLangEn)
+	mux.HandleFunc("/echo-headers", handleEchoHeaders)
 	return httptest.NewServer(mux)
 }
 
@@ -96,6 +98,18 @@ const enPage = `<!DOCTYPE html>
 <head><title>English Page</title></head>
 <body><p>LANG_EN_MARKER</p></body>
 </html>`
+
+// handleEchoHeaders はリクエストのUser-AgentとAccept-LanguageをHTML内に埋め込んで返す。
+func handleEchoHeaders(w http.ResponseWriter, r *http.Request) {
+	ua := r.Header.Get("User-Agent")
+	lang := r.Header.Get("Accept-Language")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprintf(w, `<!DOCTYPE html>
+<html><body>
+<p id="ua">%s</p>
+<p id="lang">%s</p>
+</body></html>`, ua, lang)
+}
 
 // --- 静的ページ ---
 
