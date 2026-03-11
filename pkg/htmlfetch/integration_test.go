@@ -82,6 +82,36 @@ func TestFetchDynamicContent(t *testing.T) {
 	})
 }
 
+// TestAcceptLanguage_DefaultRedirectsToJa はデフォルトのAccept-Language設定で
+// 日本語ページにリダイレクトされることを検証する。
+func TestAcceptLanguage_DefaultRedirectsToJa(t *testing.T) {
+	if testing.Short() {
+		t.Skip("統合テストをスキップ（-short指定）")
+	}
+
+	ts := newTestServer(t)
+	defer ts.Close()
+
+	fetcher := New(WithStealth(false))
+	if err := fetcher.Start(); err != nil {
+		t.Fatalf("ブラウザの起動に失敗: %v", err)
+	}
+	defer fetcher.Close()
+
+	result, err := fetcher.Fetch(context.Background(), ts.URL+"/lang-redirect",
+		WithWaitStrategy(WaitLoad))
+	if err != nil {
+		t.Fatalf("Fetchに失敗: %v", err)
+	}
+
+	// デフォルトで日本語ページにリダイレクトされるべき
+	assertContains(t, result.HTML, "LANG_JA_MARKER")
+
+	if strings.Contains(result.HTML, "LANG_EN_MARKER") {
+		t.Error("英語ページにリダイレクトされました（Accept-Languageが日本語になっていない）")
+	}
+}
+
 func assertContains(t *testing.T, html, marker string) {
 	t.Helper()
 	if !strings.Contains(html, marker) {

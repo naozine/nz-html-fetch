@@ -3,6 +3,7 @@ package htmlfetch
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -17,6 +18,9 @@ func newTestServer(t *testing.T) *httptest.Server {
 	mux.HandleFunc("/api/handlebars-data", handleHandlebarsAPI)
 	mux.HandleFunc("/riotjs", handleRiotJS)
 	mux.HandleFunc("/api/riotjs-data", handleRiotJSAPI)
+	mux.HandleFunc("/lang-redirect", handleLangRedirect)
+	mux.HandleFunc("/lang-redirect/ja", handleLangJa)
+	mux.HandleFunc("/lang-redirect/en", handleLangEn)
 	return httptest.NewServer(mux)
 }
 
@@ -59,6 +63,39 @@ func handleRiotJSAPI(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(riotjsData))
 }
+
+// handleLangRedirect はAccept-Languageヘッダーを見て言語別ページにリダイレクトする。
+// 早稲田大学サイトのように、ブラウザの言語設定でリダイレクト先が変わる動作を再現する。
+func handleLangRedirect(w http.ResponseWriter, r *http.Request) {
+	lang := r.Header.Get("Accept-Language")
+	if strings.Contains(lang, "ja") {
+		http.Redirect(w, r, "/lang-redirect/ja", http.StatusFound)
+		return
+	}
+	http.Redirect(w, r, "/lang-redirect/en", http.StatusFound)
+}
+
+func handleLangJa(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write([]byte(jaPage))
+}
+
+func handleLangEn(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write([]byte(enPage))
+}
+
+const jaPage = `<!DOCTYPE html>
+<html lang="ja">
+<head><title>日本語ページ</title></head>
+<body><p>LANG_JA_MARKER</p></body>
+</html>`
+
+const enPage = `<!DOCTYPE html>
+<html lang="en">
+<head><title>English Page</title></head>
+<body><p>LANG_EN_MARKER</p></body>
+</html>`
 
 // --- 静的ページ ---
 
