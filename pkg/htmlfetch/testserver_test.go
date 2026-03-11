@@ -23,6 +23,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 	mux.HandleFunc("/lang-redirect/ja", handleLangJa)
 	mux.HandleFunc("/lang-redirect/en", handleLangEn)
 	mux.HandleFunc("/echo-headers", handleEchoHeaders)
+	mux.HandleFunc("/bot-detect", handleBotDetect)
 	return httptest.NewServer(mux)
 }
 
@@ -110,6 +111,158 @@ func handleEchoHeaders(w http.ResponseWriter, r *http.Request) {
 <p id="lang">%s</p>
 </body></html>`, ua, lang)
 }
+
+// handleBotDetect はブラウザのbot検出チェックを実行し、結果をJSON形式でHTMLに埋め込むページを返す。
+// 各チェックはbot検出サイト（bot.sannysoft.com, CreepJS等）で使われている手法を再現している。
+func handleBotDetect(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write([]byte(botDetectPage))
+}
+
+// --- bot検出ページ ---
+// 各チェックはクライアントサイドJSで実行し、結果をJSON形式で <pre id="results"> に出力する。
+// go-rod/stealth が対策済みの項目に絞り、ヘッドレスChromeで検出可能な代表的手法をカバーする。
+//
+// チェック項目と出典:
+//
+// 1. navigator.webdriver
+//    - 自動化ブラウザでは true、通常ブラウザでは undefined
+//    - 出典: W3C WebDriver spec (https://www.w3.org/TR/webdriver/#dom-navigatorautomationinformation-webdriver)
+//    - 参考: bot.sannysoft.com, puppeteer-extra-plugin-stealth "navigator.webdriver" evasion
+//
+// 2. window.chrome 存在チェック
+//    - ヘッドレスChromeでは window.chrome が未定義
+//    - 出典: bot.sannysoft.com "Chrome" test
+//    - 参考: puppeteer-extra-plugin-stealth "chrome.app", "chrome.csi", "chrome.loadTimes", "chrome.runtime" evasions
+//
+// 3. window.chrome.app
+//    - 通常Chromeでは isInstalled, getDetails 等のプロパティを持つオブジェクト
+//    - 出典: puppeteer-extra-plugin-stealth "chrome.app" evasion
+//    - 参考: https://nickchrysler.com/are-you-chrome/
+//
+// 4. window.chrome.csi
+//    - 通常Chromeでは performance.timing 相当のデータを返す関数
+//    - 出典: puppeteer-extra-plugin-stealth "chrome.csi" evasion
+//    - 参考: bot.sannysoft.com "Chrome (chrome.csi)" test
+//
+// 5. window.chrome.loadTimes
+//    - 通常Chromeではページ読み込みタイミング情報を返す関数
+//    - 出典: puppeteer-extra-plugin-stealth "chrome.loadTimes" evasion
+//    - 参考: bot.sannysoft.com "Chrome (chrome.loadTimes)" test
+//
+// 6. navigator.plugins
+//    - ヘッドレスChromeでは空配列、通常Chromeでは "Chrome PDF Plugin" 等が存在
+//    - 出典: bot.sannysoft.com "Plugins" test
+//    - 参考: puppeteer-extra-plugin-stealth "navigator.plugins" evasion
+//
+// 7. navigator.languages
+//    - ヘッドレスChromeでは空または未定義になる場合がある
+//    - 出典: bot.sannysoft.com "Languages" test
+//    - 参考: puppeteer-extra-plugin-stealth "navigator.languages" evasion
+//
+// 8. window.outerWidth / window.outerHeight
+//    - ヘッドレスChromeでは物理ウィンドウがないため 0 になる
+//    - 出典: bot.sannysoft.com "Outer dimensions" test
+//    - 参考: puppeteer-extra-plugin-stealth "window.outerdimensions" evasion
+//
+// 9. Notification.permission
+//    - ヘッドレスChromeでは "denied" を返すが、通常Chromeでは "default"
+//    - 出典: puppeteer-extra-plugin-stealth "navigator.permissions" evasion
+//    - 参考: CreepJS permissions check
+//
+// 10. User-Agent文字列
+//     - ヘッドレスChromeでは "HeadlessChrome" を含む
+//     - 出典: bot.sannysoft.com "User Agent" test
+//     - 参考: puppeteer-extra-plugin-stealth "user-agent-override" evasion
+//
+// 11. WebGL vendor/renderer
+//     - ヘッドレスChromeではソフトウェアレンダリング "Google SwiftShader" が返る
+//     - 出典: CreepJS WebGL fingerprint, bot.sannysoft.com "WebGL Vendor" test
+//     - 参考: puppeteer-extra-plugin-stealth "webgl.vendor" evasion
+//
+// 12. Function.prototype.toString 整合性
+//     - stealth等でProxy書き換えした関数が toString() で [native code] を返すか検証
+//     - 出典: CreepJS "lies" detection, intoli.com/blog/not-possible-to-block-chrome-headless
+//     - 参考: puppeteer-extra-plugin-stealth "Function.prototype.toString" evasion
+const botDetectPage = `<!DOCTYPE html>
+<html>
+<head><title>Bot Detection Test</title></head>
+<body>
+<pre id="results"></pre>
+<script>
+(function() {
+  var results = {};
+
+  // 1. navigator.webdriver
+  results.webdriver = (navigator.webdriver === true) ? "FAIL" : "PASS";
+
+  // 2. window.chrome
+  results.chrome_exists = (typeof window.chrome !== "undefined") ? "PASS" : "FAIL";
+
+  // 3. window.chrome.app
+  results.chrome_app = (window.chrome && typeof window.chrome.app !== "undefined") ? "PASS" : "FAIL";
+
+  // 4. window.chrome.csi
+  results.chrome_csi = (window.chrome && typeof window.chrome.csi === "function") ? "PASS" : "FAIL";
+
+  // 5. window.chrome.loadTimes
+  results.chrome_loadTimes = (window.chrome && typeof window.chrome.loadTimes === "function") ? "PASS" : "FAIL";
+
+  // 6. navigator.plugins
+  results.plugins = (navigator.plugins && navigator.plugins.length > 0) ? "PASS" : "FAIL";
+
+  // 7. navigator.languages
+  results.languages = (navigator.languages && navigator.languages.length > 0) ? "PASS" : "FAIL";
+
+  // 8. window.outerWidth / outerHeight
+  results.outer_dimensions = (window.outerWidth > 0 && window.outerHeight > 0) ? "PASS" : "FAIL";
+
+  // 9. Notification.permission
+  try {
+    results.notification_permission = (Notification.permission === "denied") ? "FAIL" : "PASS";
+  } catch(e) {
+    results.notification_permission = "SKIP";
+  }
+
+  // 10. User-Agent
+  results.user_agent = (navigator.userAgent.indexOf("HeadlessChrome") === -1) ? "PASS" : "FAIL";
+
+  // 11. WebGL vendor/renderer
+  try {
+    var canvas = document.createElement("canvas");
+    var gl = canvas.getContext("webgl");
+    if (gl) {
+      var debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
+      if (debugInfo) {
+        var vendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
+        var renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+        results.webgl_vendor = vendor;
+        results.webgl_renderer = renderer;
+        results.webgl = (renderer.indexOf("SwiftShader") === -1) ? "PASS" : "FAIL";
+      } else {
+        results.webgl = "SKIP";
+      }
+    } else {
+      results.webgl = "SKIP";
+    }
+  } catch(e) {
+    results.webgl = "SKIP";
+  }
+
+  // 12. Function.prototype.toString 整合性
+  // navigator.permissionsのqueryがnative codeとして見えるか検証
+  try {
+    var fnStr = Permissions.prototype.query.toString();
+    results.fn_toString = (fnStr.indexOf("[native code]") !== -1) ? "PASS" : "FAIL";
+  } catch(e) {
+    results.fn_toString = "SKIP";
+  }
+
+  document.getElementById("results").textContent = JSON.stringify(results);
+})();
+</script>
+</body>
+</html>`
 
 // --- 静的ページ ---
 

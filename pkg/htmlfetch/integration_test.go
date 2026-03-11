@@ -2,6 +2,7 @@ package htmlfetch
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -149,6 +150,102 @@ func TestUserAgent_NoHeadlessChrome(t *testing.T) {
 			assertContains(t, result.HTML, "Chrome/")
 		})
 	}
+}
+
+// TestStealth_BotDetection はstealth有効時にbot検出チェックをパスすることを検証する。
+// 各チェック項目の詳細はtestserver_test.goのbotDetectPageコメントを参照。
+func TestStealth_BotDetection(t *testing.T) {
+	if testing.Short() {
+		t.Skip("統合テストをスキップ（-short指定）")
+	}
+
+	ts := newTestServer(t)
+	defer ts.Close()
+
+	fetcher := New(WithStealth(true))
+	if err := fetcher.Start(); err != nil {
+		t.Fatalf("ブラウザの起動に失敗: %v", err)
+	}
+	defer fetcher.Close()
+
+	result, err := fetcher.Fetch(context.Background(), ts.URL+"/bot-detect",
+		WithWaitStrategy(WaitDOMStable))
+	if err != nil {
+		t.Fatalf("Fetchに失敗: %v", err)
+	}
+
+	// <pre id="results">...</pre> からJSONを抽出
+	start := strings.Index(result.HTML, `<pre id="results">`)
+	end := strings.Index(result.HTML, `</pre>`)
+	if start == -1 || end == -1 {
+		t.Fatalf("結果のHTMLからJSONを抽出できません (HTML長: %d)", len(result.HTML))
+	}
+	jsonStr := result.HTML[start+len(`<pre id="results">`):end]
+
+	var results map[string]string
+	if err := json.Unmarshal([]byte(jsonStr), &results); err != nil {
+		t.Fatalf("結果JSONのパースに失敗: %v\nJSON: %s", err, jsonStr)
+	}
+
+	// stealth対策済みのチェック項目（PASSが期待される）
+	mustPass := []struct {
+		key  string
+		desc string
+	}{
+		{"webdriver", "navigator.webdriver が false/undefined"},
+		{"chrome_exists", "window.chrome が存在する"},
+		{"chrome_app", "window.chrome.app が存在する"},
+		{"chrome_csi", "window.chrome.csi が関数として存在する"},
+		{"chrome_loadTimes", "window.chrome.loadTimes が関数として存在する"},
+		{"plugins", "navigator.plugins が空でない"},
+		{"languages", "navigator.languages が空でない"},
+		{"outer_dimensions", "window.outerWidth/Height が 0 でない"},
+		{"user_agent", "User-Agentに HeadlessChrome が含まれない"},
+	}
+
+	for _, tc := range mustPass {
+		t.Run(tc.key, func(t *testing.T) {
+			v, ok := results[tc.key]
+			if !ok {
+				t.Errorf("チェック項目 %q が結果に含まれていません", tc.key)
+				return
+			}
+			if v != "PASS" {
+				t.Errorf("%s: %s (got %s)", tc.key, tc.desc, v)
+			}
+		})
+	}
+
+	// SKIPを許容するチェック項目（環境依存）
+	maySkip := []struct {
+		key  string
+		desc string
+	}{
+		{"notification_permission", "Notification.permission が denied でない"},
+		{"webgl", "WebGL renderer に SwiftShader が含まれない"},
+		{"fn_toString", "Permissions.prototype.query.toString() が [native code] を返す"},
+	}
+
+	for _, tc := range maySkip {
+		t.Run(tc.key, func(t *testing.T) {
+			v, ok := results[tc.key]
+			if !ok {
+				t.Skipf("チェック項目 %q が結果に含まれていません", tc.key)
+				return
+			}
+			switch v {
+			case "PASS":
+				// OK
+			case "SKIP":
+				t.Skipf("%s: 環境依存でスキップ", tc.key)
+			default:
+				t.Errorf("%s: %s (got %s)", tc.key, tc.desc, v)
+			}
+		})
+	}
+
+	// 全結果をログに出力（デバッグ用）
+	t.Logf("bot検出結果: %s", jsonStr)
 }
 
 func assertContains(t *testing.T, html, marker string) {
