@@ -4,9 +4,10 @@ import "time"
 
 // Fetcher設定（内部状態）
 type fetcherConfig struct {
-	browserPath string
-	stealth     bool
-	proxy       string
+	browserPath       string
+	stealth           bool
+	proxy             string
+	ignoreCertErrors  bool
 }
 
 // Option はFetcher作成時のオプション
@@ -23,6 +24,13 @@ func WithBrowserPath(path string) Option {
 func WithProxy(addr string) Option {
 	return func(c *fetcherConfig) {
 		c.proxy = addr
+	}
+}
+
+// WithIgnoreCertErrors はTLS証明書エラーを無視する
+func WithIgnoreCertErrors(enabled bool) Option {
+	return func(c *fetcherConfig) {
+		c.ignoreCertErrors = enabled
 	}
 }
 

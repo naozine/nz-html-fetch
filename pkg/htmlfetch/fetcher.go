@@ -262,6 +262,10 @@ func (f *Fetcher) launchBrowser() (*rod.Browser, error) {
 		Set("disable-sync").
 		Set("disable-breakpad")
 
+	if f.config.ignoreCertErrors {
+		l = l.Set("ignore-certificate-errors")
+	}
+
 	if f.config.proxy != "" {
 		l = l.Proxy(f.config.proxy)
 	}

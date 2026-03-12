@@ -21,6 +21,7 @@ func main() {
 	viewport := flag.String("viewport", "1920x1080", "ビューポートサイズ (WxH)")
 	proxy := flag.String("proxy", "", "プロキシアドレス")
 	stealth := flag.Bool("stealth", true, "bot検出回避を有効化")
+	ignoreCertErrors := flag.Bool("ignore-cert-errors", false, "TLS証明書エラーを無視")
 	blockAds := flag.Bool("block-ads", false, "広告ブロック")
 	blockImages := flag.Bool("block-images", false, "画像ブロック")
 	blockCSS := flag.Bool("block-css", false, "CSSブロック")
@@ -56,6 +57,9 @@ func main() {
 	// Fetcherオプションを構築
 	var fetcherOpts []htmlfetch.Option
 	fetcherOpts = append(fetcherOpts, htmlfetch.WithStealth(*stealth))
+	if *ignoreCertErrors {
+		fetcherOpts = append(fetcherOpts, htmlfetch.WithIgnoreCertErrors(true))
+	}
 	if *proxy != "" {
 		fetcherOpts = append(fetcherOpts, htmlfetch.WithProxy(*proxy))
 	}
