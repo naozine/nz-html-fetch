@@ -148,6 +148,7 @@ func parseWaitStrategy(s string) htmlfetch.WaitStrategy {
 func outputJSON(result *htmlfetch.Result, includeMarkdown bool) {
 	type jsonOutput struct {
 		FinalURL       string `json:"final_url"`
+		StatusCode     int    `json:"status_code"`
 		DurationMs     int64  `json:"duration_ms"`
 		HTMLLength     int    `json:"html_length"`
 		MarkdownLength int    `json:"markdown_length,omitempty"`
@@ -166,6 +167,7 @@ func outputJSON(result *htmlfetch.Result, includeMarkdown bool) {
 
 	out := jsonOutput{
 		FinalURL:   result.FinalURL,
+		StatusCode: result.StatusCode,
 		DurationMs: result.Duration.Milliseconds(),
 		HTMLLength: len(result.HTML),
 	}
@@ -204,6 +206,7 @@ func outputJSON(result *htmlfetch.Result, includeMarkdown bool) {
 // outputStats は統計情報を人間が読みやすい形式で出力
 func outputStats(result *htmlfetch.Result) {
 	fmt.Printf("URL: %s\n", result.FinalURL)
+	fmt.Printf("Status: %d\n", result.StatusCode)
 	fmt.Printf("Duration: %v\n", result.Duration.Round(time.Millisecond))
 	fmt.Printf("HTML: %s\n", formatBytes(int64(len(result.HTML))))
 	fmt.Printf("Network: %s in / %s out (%d requests)\n",

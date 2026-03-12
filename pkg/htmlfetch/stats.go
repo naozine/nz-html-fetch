@@ -15,10 +15,11 @@ type requestInfo struct {
 
 // statsCollector はネットワーク統計を収集する
 type statsCollector struct {
-	stats    *NetworkStats
-	requests map[proto.NetworkRequestID]*requestInfo
-	blockSet blockingSet
-	mu       sync.Mutex
+	stats      *NetworkStats
+	requests   map[proto.NetworkRequestID]*requestInfo
+	blockSet   blockingSet
+	statusCode int
+	mu         sync.Mutex
 }
 
 // newStatsCollector は新しいstatsCollectorを作成
@@ -73,6 +74,14 @@ func (sc *statsCollector) setupNetworkStats(page *rod.Page) {
 		}
 		sc.stats.ByResourceType[resourceType].Count++
 		sc.stats.ByResourceType[resourceType].BytesOut += requestSize
+	}, func(e *proto.NetworkResponseReceived) {
+		sc.mu.Lock()
+		defer sc.mu.Unlock()
+
+		// 最初のDocumentレスポンスのステータスコードを記録
+		if sc.statusCode == 0 && e.Type == proto.NetworkResourceTypeDocument && e.Response != nil {
+			sc.statusCode = e.Response.Status
+		}
 	}, func(e *proto.NetworkLoadingFinished) {
 		sc.mu.Lock()
 		defer sc.mu.Unlock()
@@ -87,6 +96,13 @@ func (sc *statsCollector) setupNetworkStats(page *rod.Page) {
 			}
 		}
 	})()
+}
+
+// getStatusCode は最初のDocumentレスポンスのHTTPステータスコードを返す
+func (sc *statsCollector) getStatusCode() int {
+	sc.mu.Lock()
+	defer sc.mu.Unlock()
+	return sc.statusCode
 }
 
 // getStats は収集した統計を返す

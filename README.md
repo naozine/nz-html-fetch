@@ -9,6 +9,7 @@ Chromiumブラウザを使用してWebページのHTMLを取得するGoライブ
 - **TLS証明書エラー無視**: 期限切れ・自己署名証明書のサイトにもアクセス可能
 - **リソースブロッキング**: 広告、画像、CSS、フォント等を個別にブロック
 - **Markdown変換**: Readabilityでコンテンツ抽出し、Markdownに変換
+- **HTTPステータスコード**: レスポンスのステータスコードを取得可能
 - **ネットワーク統計**: リソース別の通信量を計測
 - **高速モード**: `Start()/Close()`でブラウザを再利用
 
@@ -40,6 +41,7 @@ func main() {
     }
 
     fmt.Println(result.HTML)
+    fmt.Printf("Status: %d\n", result.StatusCode)
     fmt.Printf("Duration: %v\n", result.Duration)
     fmt.Printf("Bytes In: %d\n", result.Stats.TotalBytesIn)
 }
@@ -163,6 +165,7 @@ Readabilityで抽出したコンテンツをMarkdown形式で出力
 ```json
 {
   "final_url": "https://example.com/",
+  "status_code": 200,
   "duration_ms": 1234,
   "html_length": 52010,
   "markdown_length": 15607,
@@ -182,6 +185,7 @@ Readabilityで抽出したコンテンツをMarkdown形式で出力
 ### stats
 ```
 URL: https://example.com/
+Status: 200
 Duration: 1.234s
 HTML: 50.8 KB
 Network: 554.1 KB in / 20.1 KB out (36 requests)

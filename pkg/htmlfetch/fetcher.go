@@ -187,10 +187,11 @@ func (f *Fetcher) Fetch(ctx context.Context, url string, opts ...FetchOption) (*
 	}
 
 	result := &Result{
-		HTML:     html,
-		FinalURL: finalURL,
-		Stats:    collector.getStats(),
-		Duration: time.Since(startTime),
+		HTML:        html,
+		FinalURL:    finalURL,
+		StatusCode:  collector.getStatusCode(),
+		Stats:       collector.getStats(),
+		Duration:    time.Since(startTime),
 	}
 
 	// Markdown変換（オプション）
