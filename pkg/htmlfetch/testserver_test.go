@@ -264,6 +264,15 @@ const botDetectPage = `<!DOCTYPE html>
 </body>
 </html>`
 
+// newTLSTestServer は自己署名証明書のHTTPSテストサーバーを作成する。
+// Chromiumからはこの証明書は信頼されないため、証明書エラーが発生する。
+func newTLSTestServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", handleStatic)
+	return httptest.NewTLSServer(mux)
+}
+
 // --- 静的ページ ---
 
 const staticPage = `<!DOCTYPE html>

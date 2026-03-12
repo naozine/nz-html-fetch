@@ -248,6 +248,45 @@ func TestStealth_BotDetection(t *testing.T) {
 	t.Logf("bot検出結果: %s", jsonStr)
 }
 
+// TestIgnoreCertErrors は自己署名証明書のHTTPSサーバーに対する動作を検証する。
+func TestIgnoreCertErrors(t *testing.T) {
+	if testing.Short() {
+		t.Skip("統合テストをスキップ（-short指定）")
+	}
+
+	ts := newTLSTestServer(t)
+	defer ts.Close()
+
+	t.Run("WithoutOption_Fails", func(t *testing.T) {
+		fetcher := New(WithStealth(false))
+		if err := fetcher.Start(); err != nil {
+			t.Fatalf("ブラウザの起動に失敗: %v", err)
+		}
+		defer fetcher.Close()
+
+		_, err := fetcher.Fetch(context.Background(), ts.URL+"/",
+			WithWaitStrategy(WaitLoad))
+		if err == nil {
+			t.Error("証明書エラーが発生するはずですが、成功しました")
+		}
+	})
+
+	t.Run("WithOption_Succeeds", func(t *testing.T) {
+		fetcher := New(WithStealth(false), WithIgnoreCertErrors(true))
+		if err := fetcher.Start(); err != nil {
+			t.Fatalf("ブラウザの起動に失敗: %v", err)
+		}
+		defer fetcher.Close()
+
+		result, err := fetcher.Fetch(context.Background(), ts.URL+"/",
+			WithWaitStrategy(WaitLoad))
+		if err != nil {
+			t.Fatalf("Fetchに失敗: %v", err)
+		}
+		assertContains(t, result.HTML, "STATIC_CONTENT_MARKER")
+	})
+}
+
 func assertContains(t *testing.T, html, marker string) {
 	t.Helper()
 	if !strings.Contains(html, marker) {
