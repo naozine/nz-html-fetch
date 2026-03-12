@@ -5,7 +5,8 @@ Chromiumブラウザを使用してWebページのHTMLを取得するGoライブ
 ## 特徴
 
 - **動的コンテンツ対応**: Chromium (Rod) によるJavaScript実行
-- **Bot検出回避**: Stealthモードでブロック回避
+- **Bot検出回避**: Stealthモードでブロック回避（UserAgent偽装・Accept-Language日本語優先を含む）
+- **TLS証明書エラー無視**: 期限切れ・自己署名証明書のサイトにもアクセス可能
 - **リソースブロッキング**: 広告、画像、CSS、フォント等を個別にブロック
 - **Markdown変換**: Readabilityでコンテンツ抽出し、Markdownに変換
 - **ネットワーク統計**: リソース別の通信量を計測
@@ -27,7 +28,7 @@ package main
 import (
     "context"
     "fmt"
-日本語の「こめ    "github.com/naozine/nz-html-fetch/pkg/htmlfetch"
+    "github.com/naozine/nz-html-fetch/pkg/htmlfetch"
 )
 
 func main() {
@@ -81,7 +82,8 @@ for _, url := range urls {
 ```go
 // Fetcher作成オプション
 fetcher := htmlfetch.New(
-    htmlfetch.WithStealth(true),           // Bot検出回避（デフォルト: true）
+    htmlfetch.WithStealth(true),              // Bot検出回避（デフォルト: true）
+    htmlfetch.WithIgnoreCertErrors(true),     // TLS証明書エラーを無視
     htmlfetch.WithProxy("http://proxy:8080"), // プロキシ設定
     htmlfetch.WithBrowserPath("/path/to/chrome"), // ブラウザパス
 )
@@ -124,6 +126,9 @@ go build -o htmlfetch ./cmd/htmlfetch
 
 # JSON出力（Markdown含む）
 ./htmlfetch -markdown -output=json https://example.com
+
+# 証明書エラーのサイトにアクセス
+./htmlfetch -ignore-cert-errors https://example.com
 ```
 
 ### CLIオプション
@@ -136,6 +141,7 @@ go build -o htmlfetch ./cmd/htmlfetch
 | `-viewport` | ビューポートサイズ (WxH) | 1920x1080 |
 | `-proxy` | プロキシアドレス | - |
 | `-stealth` | Bot検出回避 | true |
+| `-ignore-cert-errors` | TLS証明書エラーを無視 | false |
 | `-block-ads` | 広告ブロック | false |
 | `-block-images` | 画像ブロック | false |
 | `-block-css` | CSSブロック | false |
